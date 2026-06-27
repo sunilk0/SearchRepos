@@ -7,25 +7,48 @@ import {
   StyleSheet,
   Alert,
   ScrollView,
+  ActivityIndicator,
 } from 'react-native';
-import { useAppDispatch } from '../hooks/useAppDispatch';
+import { useAppDispatch, useAppSelector } from '../hooks/useAppDispatch';
 import { setLoading, setError } from '../store/slices/authSlice';
 import { authService } from '../services/authService';
 
 export default function SignUpScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [displayName, setDisplayName] = useState('');
   const dispatch = useAppDispatch();
+  const { isLoading } = useAppSelector((state) => state.auth);
 
-  const handleSignUp = async () => {
-    if (!email || !password || !displayName) {
-      Alert.alert('Error', 'Please fill in all fields');
-      return;
+  const validateForm = (): string | null => {
+    if (!email || !password || !displayName || !confirmPassword) {
+      return 'Please fill in all fields';
+    }
+
+    if (!/^\S+@\S+\.\S+$/.test(email)) {
+      return 'Please enter a valid email address';
     }
 
     if (password.length < 6) {
-      Alert.alert('Error', 'Password must be at least 6 characters');
+      return 'Password must be at least 6 characters';
+    }
+
+    if (password !== confirmPassword) {
+      return 'Passwords do not match';
+    }
+
+    if (displayName.length < 2) {
+      return 'Name must be at least 2 characters';
+    }
+
+    return null;
+  };
+
+  const handleSignUp = async () => {
+    const validationError = validateForm();
+    if (validationError) {
+      Alert.alert('Validation Error', validationError);
       return;
     }
 
@@ -33,8 +56,22 @@ export default function SignUpScreen() {
       dispatch(setLoading(true));
       await authService.signUp(email, password, displayName);
     } catch (error: any) {
-      dispatch(setError(error.message));
-      Alert.alert('Sign Up Failed', error.message);
+      const errorMessage = error.message || 'Sign Up Failed';
+      dispatch(setError(errorMessage));
+      Alert.alert('Sign Up Failed', errorMessage);
+    } finally {
+      dispatch(setLoading(false));
+    }
+  };
+
+  const handleGoogleSignUp = async () => {
+    try {
+      dispatch(setLoading(true));
+      await authService.signInWithGoogle();
+    } catch (error: any) {
+      const errorMessage = error.message || 'Google Sign Up Failed';
+      dispatch(setError(errorMessage));
+      Alert.alert('Google Sign Up Failed', errorMessage);
     } finally {
       dispatch(setLoading(false));
     }
@@ -51,6 +88,7 @@ export default function SignUpScreen() {
           placeholder="Full Name"
           value={displayName}
           onChangeText={setDisplayName}
+          editable={!isLoading}
         />
         <TextInput
           style={styles.input}
@@ -59,6 +97,7 @@ export default function SignUpScreen() {
           onChangeText={setEmail}
           keyboardType="email-address"
           autoCapitalize="none"
+          editable={!isLoading}
         />
         <TextInput
           style={styles.input}
@@ -66,10 +105,41 @@ export default function SignUpScreen() {
           value={password}
           onChangeText={setPassword}
           secureTextEntry
+          editable={!isLoading}
+        />
+        <TextInput
+          style={styles.input}
+          placeholder="Confirm Password"
+          value={confirmPassword}
+          onChangeText={setConfirmPassword}
+          secureTextEntry
+          editable={!isLoading}
         />
 
-        <TouchableOpacity style={styles.button} onPress={handleSignUp}>
-          <Text style={styles.buttonText}>Sign Up</Text>
+        <TouchableOpacity
+          style={[styles.button, isLoading && styles.buttonDisabled]}
+          onPress={handleSignUp}
+          disabled={isLoading}
+        >
+          {isLoading ? (
+            <ActivityIndicator color="#fff" />
+          ) : (
+            <Text style={styles.buttonText}>Sign Up</Text>
+          )}
+        </TouchableOpacity>
+
+        <View style={styles.divider}>
+          <View style={styles.line} />
+          <Text style={styles.dividerText}>OR</Text>
+          <View style={styles.line} />
+        </View>
+
+        <TouchableOpacity
+          style={[styles.googleButton, isLoading && styles.buttonDisabled]}
+          onPress={handleGoogleSignUp}
+          disabled={isLoading}
+        >
+          <Text style={styles.googleButtonText}>Sign Up with Google</Text>
         </TouchableOpacity>
 
         <Text style={styles.link}>Already have an account? Sign In</Text>
@@ -115,10 +185,40 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginTop: 20,
   },
+  buttonDisabled: {
+    opacity: 0.6,
+  },
   buttonText: {
     color: '#fff',
     fontSize: 16,
     fontWeight: '600',
+  },
+  googleButton: {
+    backgroundColor: '#fff',
+    borderWidth: 1,
+    borderColor: '#007AFF',
+    padding: 15,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  googleButtonText: {
+    color: '#007AFF',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  divider: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginVertical: 15,
+  },
+  line: {
+    flex: 1,
+    height: 1,
+    backgroundColor: '#ddd',
+  },
+  dividerText: {
+    marginHorizontal: 10,
+    color: '#999',
   },
   link: {
     textAlign: 'center',
